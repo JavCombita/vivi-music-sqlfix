@@ -146,8 +146,6 @@ class MusicDatabase(
         AutoMigration(from = 29, to = 30, spec = Migration29To30::class),
         AutoMigration(from = 30, to = 31),
         AutoMigration(from = 31, to = 32),
-        AutoMigration(from = 32, to = 33),
-        AutoMigration(from = 33, to = 34),
     ],
 )
 @TypeConverters(Converters::class)
@@ -168,6 +166,8 @@ abstract class InternalDatabase : RoomDatabase() {
                         MIGRATION_21_24,
                         MIGRATION_22_24,
                         MIGRATION_24_25,
+                        MIGRATION_32_33,
+                        MIGRATION_33_34,
                     )
                     .fallbackToDestructiveMigration(dropAllTables = true)
                     .setJournalMode(RoomDatabase.JournalMode.WRITE_AHEAD_LOGGING)
@@ -714,3 +714,35 @@ class Migration29To30 : AutoMigrationSpec {
         }
     }
 }
+
+// Manual migration from 32 to 33: Add description column to album table
+// This migration checks if the column already exists to avoid duplicate column error
+val MIGRATION_32_33 =
+    object : Migration(32, 33) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            // Check if description column already exists in album table
+            var hasDescription = false
+            db.query("PRAGMA table_info('album')").use { cursor ->
+                val nameIndex = cursor.getColumnIndex("name")
+                while (cursor.moveToNext()) {
+                    val colName = if (nameIndex >= 0) cursor.getString(nameIndex) else null
+                    if (colName == "description") {
+                        hasDescription = true
+                        break
+                    }
+                }
+            }
+            // Only add the column if it doesn't exist
+            if (!hasDescription) {
+                db.execSQL("ALTER TABLE album ADD COLUMN description TEXT DEFAULT NULL")
+            }
+        }
+    }
+
+// Manual migration from 33 to 34: No schema changes, but version bump for consistency
+val MIGRATION_33_34 =
+    object : Migration(33, 34) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            // No schema changes needed - this migration exists to ensure proper version progression
+        }
+    }
